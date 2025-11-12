@@ -11,7 +11,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
@@ -20,10 +19,6 @@ const shellVariants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.25 } },
 }
 
-/* =====================
-   Helpers
-   ===================== */
-// Resolve mode from explicit prop, /auth/[mode], or ?mode=signup
 function resolveAuthMode(explicitMode, pathname, searchParams) {
   if (explicitMode) return explicitMode
   const m = searchParams?.get?.('mode')
@@ -35,7 +30,6 @@ function resolveAuthMode(explicitMode, pathname, searchParams) {
   return 'signin'
 }
 
-// Best‑effort normalize US numbers to E.164 (+1XXXXXXXXXX)
 function normalizeUSPhoneToE164(value) {
   if (!value) return ''
   const digits = String(value).replace(/[^0-9]/g, '')
@@ -45,9 +39,6 @@ function normalizeUSPhoneToE164(value) {
   return value
 }
 
-/* =====================
-   Inputs
-   ===================== */
 function PasswordInput({ id, placeholder, value, onChange, autoComplete, disabled }) {
   const [show, setShow] = useState(false)
   return (
@@ -80,7 +71,7 @@ function OtpInput({ length = 6, onChange, disabled }) {
 
   useEffect(() => {
     onChange?.(digits.join(''))
-  }, [digits])
+  }, [digits, onChange])
 
   const handle = (i, v) => {
     if (!/^[0-9]?$/.test(v)) return
@@ -119,9 +110,6 @@ function OtpInput({ length = 6, onChange, disabled }) {
   )
 }
 
-/* =====================
-   Brand
-   ===================== */
 function Brand({ name = 'Spend Sage', tagline = 'Secure sign in & sign up' }) {
   return (
     <div className="mb-6 text-center">
@@ -134,9 +122,6 @@ function Brand({ name = 'Spend Sage', tagline = 'Secure sign in & sign up' }) {
   )
 }
 
-/* =====================
-   Forms
-   ===================== */
 function SignInForm({ onSubmit, loading }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -352,29 +337,48 @@ function ForgotForm({ onStart, onConfirm, loading }) {
 }
 
 function VerifyForm({ emailFromUrl, onSubmit, onResendCode, loading }) {
+  const router = useRouter()
+
   const [email, setEmail] = useState(emailFromUrl || '')
   const [code, setCode] = useState('')
   const [info, setInfo] = useState('')
   const [error, setError] = useState('')
+  const [verifying, setVerifying] = useState(false)
 
-  useEffect(() => { if (emailFromUrl) setEmail(emailFromUrl) }, [emailFromUrl])
+  useEffect(() => {
+    if (emailFromUrl) setEmail(emailFromUrl)
+  }, [emailFromUrl])
 
-  const submit = async (e) => {
+  const handleVerify = async (e) => {
     e?.preventDefault?.()
     setError('')
+    setInfo('')
+    if (code.length !== 6 || !email) {
+      setError('Enter your email and the complete 6-digit code.')
+      return
+    }
+    setVerifying(true)
     try {
       await onSubmit?.({ email, code })
-      setInfo('Email verified successfully!')
+      setInfo('Email verified successfully. Redirecting to sign in…')
+      setTimeout(() => router.push(`/auth/signin?verified=1&email=${encodeURIComponent(email)}`), 1200)
     } catch (err) {
       setError(err?.message || 'Verification failed.')
+    } finally {
+      setVerifying(false)
     }
   }
 
-  const resend = async () => {
+  const handleResend = async () => {
     setInfo('')
+    setError('')
+    if (!email) {
+      setError('Enter your email so we can resend the code.')
+      return
+    }
     try {
       await onResendCode?.({ email })
-      setInfo("We\'ve sent a new code to your email.")
+      setInfo("We've sent a new code to your email.")
     } catch (err) {
       setError(err?.message || 'Could not resend the code.')
     }
@@ -386,7 +390,7 @@ function VerifyForm({ emailFromUrl, onSubmit, onResendCode, loading }) {
       <Card className="mx-auto w-full max-w-sm">
         <CardHeader>
           <CardTitle>Verify email</CardTitle>
-          <CardDescription>Enter your email and the 6‑digit code.</CardDescription>
+          <CardDescription>Enter your email and the 6-digit code.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
           {info && (
@@ -402,17 +406,17 @@ function VerifyForm({ emailFromUrl, onSubmit, onResendCode, loading }) {
             </Alert>
           )}
           <div className="grid gap-2">
-            <Label htmlFor="vemail" className="flex items-center gap-2"><Mail className="h-4 w-4"/> Email</Label>
+            <Label htmlFor="vemail" className="flex items-center gap-2"><Mail className="h-4 w-4" /> Email</Label>
             <Input id="vemail" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="you@example.com" required />
           </div>
-          <OtpInput length={6} onChange={setCode} disabled={loading}/>
-          <Button type="submit" className="w-full" onClick={submit} disabled={loading || code.length !== 6 || !email}>
-            {loading ? <CircleDashed className="mr-2 h-4 w-4 animate-spin"/> : null}
+          <OtpInput length={6} onChange={setCode} disabled={loading || verifying}/>
+          <Button type="button" className="w-full" onClick={handleVerify} disabled={loading || verifying || code.length !== 6 || !email}>
+            {loading || verifying ? <CircleDashed className="mr-2 h-4 w-4 animate-spin"/> : null}
             Verify
           </Button>
           <div className="text-center text-sm text-muted-foreground">
             Didn&apos;t get the code?{' '}
-            <button onClick={resend} className="text-primary underline-offset-4 hover:underline" disabled={loading || !email}>
+            <button onClick={handleResend} className="text-primary underline-offset-4 hover:underline" disabled={loading || verifying || !email}>
               Resend
             </button>
           </div>
@@ -422,9 +426,6 @@ function VerifyForm({ emailFromUrl, onSubmit, onResendCode, loading }) {
   )
 }
 
-/* =====================
-   Wrapper (mode switch)
-   ===================== */
 export default function AuthScreens({
   mode = undefined,
   onSignIn,

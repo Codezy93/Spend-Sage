@@ -1,31 +1,33 @@
-import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
+import { type ClientSchema, a, defineData } from '@aws-amplify/backend'
 
-/*== STEP 1 ===============================================================
-The section below creates a Todo database table with a "content" field. Try
-adding a new "isDone" field as a boolean. The authorization rule below
-specifies that any unauthenticated user can "create", "read", "update", 
-and "delete" any "Todo" records.
-=========================================================================*/
 const schema = a.schema({
   Users: a
     .model({
-      id: a.id(),
-      email: a.string(),
-      phoneNumber: a.string(),
-      fullname: a.string(),
-      plaidToken: a.string(),
+      id: a.id(),                     // primary key
+      email: a.string().required(),   // make key PII required
+      phoneNumber: a.string().required(),
+      fullName: a.string().required(),
+      plaidAccessToken: a.string().required(),
     })
-    .authorization((allow) => [allow.guest()]),
-});
+    // Owner-only access (Cognito User Pool). Add an Admin group if you need ops access.
+    .authorization((allow) => [
+      allow.owner(),                  // grants CRUD to the signed-in user (owner = Cognito sub)
+      // allow.groups(['Admin']),     // (optional) add a group for backoffice/admin tools
+    ]),
+})
 
-export type Schema = ClientSchema<typeof schema>;
+export type Schema = ClientSchema<typeof schema>
 
 export const data = defineData({
   schema,
   authorizationModes: {
-    defaultAuthorizationMode: 'identityPool',
+    // Default to USER POOL auth for this app (signed-in users only)
+    defaultAuthorizationMode: 'userPool',
+    // If you truly need public/guest access later, add it intentionally:
+    // additionalAuthorizationModes: ['identityPool'],
   },
-});
+})
+
 
 /*== STEP 2 ===============================================================
 Go to your frontend source code. From your client-side code, generate a
